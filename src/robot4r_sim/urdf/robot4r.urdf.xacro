@@ -1,0 +1,172 @@
+<?xml version="1.0"?>
+<robot name="robot4r" xmlns:xacro="http://www.ros.org/wiki/xacro">
+
+  <!-- Parámetros del modelo (a, l, b del documento de cinemática) -->
+  <xacro:property name="rueda_radio" value="0.024"/>   <!-- a -->
+  <xacro:property name="rueda_ancho" value="0.018"/>
+  <xacro:property name="l" value="0.0475"/>            <!-- semi-distancia entre ejes -->
+  <xacro:property name="b" value="0.0685"/>            <!-- semi-vía -->
+  <xacro:property name="z_ruedas" value="-0.024831"/>  <!-- altura de los ejes respecto a base_link -->
+
+  <material name="plata"><color rgba="0.7 0.7 0.7 1"/></material>
+
+  <link name="cad_link">
+    <inertial>
+      <origin xyz="0.007075542755688884 0.00039268626018340705 -0.002336319439391987" rpy="0 0 0"/>
+      <mass value="1.1564709160846736"/>
+      <inertia ixx="0.00173" ixy="-2.3e-05" ixz="-0.000306" iyy="0.002971" iyz="-8e-06" izz="0.00348"/>
+    </inertial>
+    <visual>
+      <geometry>
+        <mesh filename="package://Modelo_3D_STEP_Corregido_description/meshes/base_link.stl" scale="0.001 0.001 0.001"/>
+      </geometry>
+      <material name="plata"/>
+    </visual>
+    <collision>
+      <!-- caja del tamaño medido del STL: 0.1986 x 0.137 x 0.126 m -->
+      <origin xyz="0.0134 0.0002 0.0239" rpy="0 0 0"/>
+      <geometry><box size="0.1986 0.137 0.126"/></geometry>
+    </collision>
+  </link>
+
+  <!-- base_link: marco ROS (+X adelante, +Y izquierda), sin masa propia. -->
+  <link name="base_link"/>
+
+  <!-- cad_link es el marco de SolidWorks, girado 180° respecto a base_link.
+       Su +X apunta hacia atrás del robot. -->
+  <joint name="base_to_cad_joint" type="fixed">
+    <parent link="base_link"/>
+    <child link="cad_link"/>
+    <origin xyz="0 0 0" rpy="0 0 ${pi}"/>
+  </joint>
+
+  <!-- Rueda: x = posición en X, y_signo = -1 izquierda / +1 derecha,
+       mesh_y = recentrado de la malla sobre su eje (medido del STL) -->
+  <xacro:macro name="rueda" params="nombre x y_signo mesh_y">
+    <link name="${nombre}_wheel">
+      <inertial>
+        <mass value="0.10793382984070173"/>
+        <inertia ixx="2.1e-05" ixy="0" ixz="0" iyy="3.7e-05" iyz="0" izz="2.1e-05"/>
+      </inertial>
+      <visual>
+        <origin xyz="${-x} ${mesh_y} ${-z_ruedas}" rpy="0 0 0"/>
+        <geometry>
+          <mesh filename="package://Modelo_3D_STEP_Corregido_description/meshes/${nombre}_wheel_link_1.stl" scale="0.001 0.001 0.001"/>
+        </geometry>
+        <material name="plata"/>
+      </visual>
+      <collision>
+        <origin xyz="0 0 0" rpy="${pi/2} 0 0"/>
+        <geometry><cylinder radius="${rueda_radio}" length="${rueda_ancho}"/></geometry>
+      </collision>
+    </link>
+
+    <joint name="${nombre}_wheel_joint" type="continuous">
+      <parent link="cad_link"/>
+      <child link="${nombre}_wheel"/>
+      <origin xyz="${x} ${y_signo * b} ${z_ruedas}" rpy="0 0 0"/>
+      <axis xyz="0 -1 0"/>
+    </joint>
+  </xacro:macro>
+
+  <xacro:rueda nombre="front_left"  x="${-l}" y_signo="-1" mesh_y="0.0673"/>
+  <xacro:rueda nombre="rear_left"   x="${l}"  y_signo="-1" mesh_y="0.0673"/>
+  <xacro:rueda nombre="front_right" x="${-l}" y_signo="1"  mesh_y="-0.0677"/>
+  <xacro:rueda nombre="rear_right"  x="${l}"  y_signo="1"  mesh_y="-0.0677"/>
+
+  <!-- Sensores. La posición va en base_link (marco ROS). Las mallas están en el
+       marco del CAD, que está girado π, por eso el visual lleva rpy="0 0 π" y el
+       origen opuesto a la posición: así el centro de la malla queda en el origen
+       del link del sensor. Posiciones medidas del STL (redondeadas a 0.1 mm). -->
+  <link name="camera_link">
+    <inertial>
+      <mass value="0.01"/>
+      <inertia ixx="1e-05" ixy="0" ixz="0" iyy="1e-05" iyz="0" izz="1e-05"/>
+    </inertial>
+    <visual>
+      <origin xyz="-0.0659 0.0002 -0.0249" rpy="0 0 ${pi}"/>
+      <geometry>
+        <mesh filename="package://Modelo_3D_STEP_Corregido_description/meshes/Camera_link_1.stl" scale="0.001 0.001 0.001"/>
+      </geometry>
+      <material name="plata"/>
+    </visual>
+  </link>
+  <joint name="camera_joint" type="fixed">
+    <parent link="base_link"/>
+    <child link="camera_link"/>
+    <origin xyz="0.0659 -0.0002 0.0249" rpy="0 0 0"/>
+  </joint>
+
+  <link name="lidar_link">
+    <inertial>
+      <mass value="0.04"/>
+      <inertia ixx="1e-04" ixy="0" ixz="0" iyy="1e-04" iyz="0" izz="1e-04"/>
+    </inertial>
+    <visual>
+      <origin xyz="0 0.0002 -0.0589" rpy="0 0 ${pi}"/>
+      <geometry>
+        <mesh filename="package://Modelo_3D_STEP_Corregido_description/meshes/Lidar_link_1.stl" scale="0.001 0.001 0.001"/>
+      </geometry>
+      <material name="plata"/>
+    </visual>
+  </link>
+  <joint name="lidar_joint" type="fixed">
+    <parent link="base_link"/>
+    <child link="lidar_link"/>
+    <origin xyz="0 -0.0002 0.0589" rpy="0 0 0"/>
+  </joint>
+
+  <gazebo reference="lidar_link">
+    <sensor name="lidar" type="gpu_lidar">
+      <topic>scan</topic>
+      <gz_frame_id>lidar_link</gz_frame_id>
+      <update_rate>10</update_rate>
+      <lidar>
+        <scan>
+          <horizontal>
+            <samples>360</samples>
+            <min_angle>-3.14159</min_angle>
+            <max_angle>3.14159</max_angle>
+          </horizontal>
+        </scan>
+        <range>
+          <min>0.1</min>
+          <max>10.0</max>
+        </range>
+      </lidar>
+    </sensor>
+  </gazebo>
+
+  <gazebo reference="camera_link">
+    <sensor name="camara" type="camera">
+      <topic>image_raw</topic>
+      <gz_frame_id>camera_link</gz_frame_id>
+      <update_rate>15</update_rate>
+      <camera>
+        <horizontal_fov>1.047</horizontal_fov>
+        <image><width>320</width><height>240</height></image>
+        <clip><near>0.1</near><far>20</far></clip>
+      </camera>
+    </sensor>
+  </gazebo>
+
+  <gazebo>
+    <plugin filename="gz-sim-diff-drive-system" name="gz::sim::systems::DiffDrive">
+      <left_joint>front_left_wheel_joint</left_joint>
+      <left_joint>rear_left_wheel_joint</left_joint>
+      <right_joint>front_right_wheel_joint</right_joint>
+      <right_joint>rear_right_wheel_joint</right_joint>
+      <wheel_separation>${2*b}</wheel_separation>
+      <wheel_radius>${rueda_radio}</wheel_radius>
+      <odom_publish_frequency>30</odom_publish_frequency>
+      <topic>cmd_vel</topic>
+      <odom_topic>odom</odom_topic>
+      <tf_topic>/tf</tf_topic>
+      <frame_id>odom</frame_id>
+      <child_frame_id>base_link</child_frame_id>
+    </plugin>
+    <plugin filename="gz-sim-joint-state-publisher-system" name="gz::sim::systems::JointStatePublisher">
+      <topic>joint_states</topic>
+    </plugin>
+  </gazebo>
+</robot>
