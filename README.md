@@ -8,7 +8,8 @@ Gazebo Sim, conectado a ROS 2 con `ros_gz_bridge` y manejado con teleoperación 
 | Paquete | Contenido |
 |---|---|
 | `Modelo_3D_STEP_Corregido_description` | URDF exportado del CAD y mallas STL. De aquí se usan las mallas. |
-| `robot4r_sim` | Xacro parametrizado, mundo, bridge, configuración de RViz2 y launch. |
+| `robot4r_sim` | Xacro parametrizado, mundo (pista), generador de la pista, bridge, configuración de RViz2 y launch. |
+| `robot4r_control` | Paquete `ament_python` para el nodo de cinemática de las llantas (aún sin nodos). |
 
 ## Dependencias
 
@@ -18,13 +19,29 @@ Paquetes apt de Jazzy: `ros-jazzy-ros-gz-sim`, `ros-jazzy-ros-gz-bridge`,
 `ros-jazzy-robot-state-publisher`, `ros-jazzy-rviz2`, `ros-jazzy-xacro`,
 `ros-jazzy-teleop-twist-keyboard`.
 
+Opcionales:
+
+- `ros-jazzy-tf2-tools`: para generar el árbol de frames con `view_frames`.
+- `python3-matplotlib`: solo para la vista previa que genera `generar_pista.py`.
+
 ## Compilar y ejecutar
 
 ```bash
 cd <raíz del workspace>
-colcon build
+source /opt/ros/jazzy/setup.bash
+colcon build --symlink-install
 source install/setup.bash
 ros2 launch robot4r_sim robot4r.launch.py
+```
+
+Con `--symlink-install`, los cambios en el xacro, el bridge, el mundo o el launch
+no requieren recompilar: basta relanzar.
+
+Antes de lanzar, conviene comprobar que no haya procesos de una sesión anterior
+(un `gz sim` huérfano duplica tópicos y consume CPU):
+
+```bash
+ps aux | grep -E "gz|rviz|parameter_bridge|robot_state_publisher" | grep -v grep
 ```
 
 El launch levanta Gazebo con la pista, el spawn del robot, el bridge,
@@ -36,6 +53,8 @@ ros2 run teleop_twist_keyboard teleop_twist_keyboard
 ```
 
 Baja las velocidades con `z` y frena con `k` antes de cerrar con `Ctrl+C`.
+Una velocidad lineal de 0.10 a 0.15 m/s y angular de unos 0.5 rad/s es cómoda
+para el estrechamiento.
 
 ## Modelo
 
@@ -44,7 +63,52 @@ Baja las velocidades con `z` y frena con `k` antes de cerrar con `Ctrl+C`.
 - `base_link` es el marco ROS (+X adelante, +Y izquierda). `cad_link` es el marco
   original del CAD, girado 180° respecto a `base_link`.
 - El plugin DiffDrive maneja las cuatro ruedas (dos por lado) con
-  `wheel_separation = 2b`.
+  `wheel_separation = 2b`. Al ser un robot de cuatro ruedas con dirección por
+  diferencia de velocidades (skid-steer), las ruedas derrapan al girar y la
+  odometría de DiffDrive no coincide exactamente con la cinemática ideal.
+
+## Sensores
+
+| Sensor | Frame | Tópico | Parámetros actuales |
+|---|---|---|---|
+| LiDAR (`gpu_lidar`) | `lidar_link` | `/scan` | 360 muestras, FOV 360°, rango 0.1 a 10 m, 10 Hz |
+| Cámara | `camera_link` | `/image_raw`, `/camera_info` | 320x240, FOV 1.047 rad, 15 Hz |
+
+Con estos valores, `camera_info` da fx = fy = 277.19 px, que concuerda con
+`160 / tan(FOV/2)`.
+
+## Pista
+
+El mundo está en `robot4r_sim/worlds/pista.sdf` y **se genera con
+`robot4r_sim/generar_pista.py`**. No se edita a mano: para cambiar la pista se
+modifican los parámetros del script y se vuelve a generar.
+
+Diseño (vista superior, unos 9 x 7 m dentro del piso de 20 x 20 m):
+
+| Elemento | Valor |
+|---|---|
+| Longitud de la línea central | unos 19 m |
+| Ancho de pasillo normal | 0.70 m (unas 4 veces el ancho del robot, ≈0.16 m) |
+| Estrechamiento | 0.40 m durante 0.6 m, con transiciones de 1.0 m |
+| Curvas | cinco de 90° y un slalom suave de ±60°, radio 0.8 a 1.0 m |
+| Muros | 0.30 m de alto, 0.05 m de espesor, con colisión |
+| Obstáculos | 2 cajas y 2 cilindros de 0.25 m de alto, con paso libre de unos 0.6 m |
+| Spawn | (x = 0.5, y = 0, yaw = 0), marcado con un disco verde |
+| Meta | marca amarilla al final del último tramo |
+
+La altura de los muros y de los obstáculos supera la del LiDAR (≈0.11 m sobre el
+suelo), así que todos son detectados.
+
+Regenerar la pista:
+
+```bash
+cd src/robot4r_sim/worlds
+python3 ../generar_pista.py     # escribe pista.sdf (y pista_preview.png si hay matplotlib)
+```
+
+El script verifica que la pista quepa en el piso y que ningún tramo se acerque a
+otro. Si se cambia el spawn, hay que actualizar a la vez `SPAWN` en el script y
+`-x -y` en `launch/robot4r.launch.py`.
 
 ## Topics puenteados
 
@@ -54,16 +118,48 @@ Baja las velocidades con `z` y frena con `k` antes de cerrar con `Ctrl+C`.
 `/joint_states` publica las ruedas en orden alfabético por nombre. Los nodos deben
 buscarlas por nombre y no por posición.
 
+## Verificación rápida
+
+Con la simulación corriendo, en otra terminal con el workspace cargado:
+
+```bash
+ros2 topic list
+ros2 topic echo /scan --field header.frame_id --once     # lidar_link
+ros2 topic echo /camera_info --once
+ros2 run tf2_tools view_frames                            # odom -> base_link -> ...
+gz model --list                                           # debe incluir robot4r
+```
+
+## Problemas conocidos
+
+- **El robot puede no verse en la ventana principal de Gazebo.** Con la pista
+  actual, el robot existe en el servidor (`gz model --list` lo lista y RViz lo
+  dibuja) pero a veces no aparece en el Entity Tree del GUI. Abrir una segunda
+  ventana con `gz sim -g` con la simulación corriendo lo muestra. La causa exacta
+  no está confirmada; una posible mitigación es retrasar el nodo `create` en el
+  launch con un `TimerAction`.
+- **La cámara llega por debajo de los 15 Hz configurados** (unos 7 Hz medidos con
+  `ros2 topic hz`). En WSL el render va por software; hay que contrastar contra el
+  factor de tiempo real de Gazebo antes de atribuirlo a la cámara.
+- **Pocas lecturas cortas del LiDAR (≈0.11 m)** a unos −160° en `/scan`: alguna parte
+  de la malla del propio robot queda cerca del sensor. No afecta la navegación.
+- La cámara usa `camera_link` como frame y no un frame óptico.
+
 ## Notas
 
 - Si la simulación corre más lenta que el tiempo real, los nodos con temporizadores
   deben usar `use_sim_time:=true`. El launch ya lo activa para sus nodos.
 - `colcon build` avisa por las mayúsculas en el nombre del paquete de descripción.
   Es solo una advertencia.
+- Archivos `*:Zone.Identifier` (los crea Windows al copiar archivos a WSL) están en
+  `.gitignore` y no deben subirse al repositorio.
 
 ## Estado
 
-- Hecho: modelo, tracción, sensores, bridge, RViz2, launch único y teleoperación.
-- Pendiente: pista propia, nodo de cinemática de las llantas y justificación de
-  parámetros de los sensores.
-- La pista actual es el pasillo recto de ejemplo de la guía del curso.
+- Hecho: modelo, tracción, sensores, bridge, RViz2, launch único, teleoperación y
+  pista propia (curvas, estrechamiento, obstáculos, muros con colisión y spawn definido).
+- Pendiente:
+  - recorrido completo de la pista con teleoperación, sin colisiones;
+  - nodo de cinemática de las llantas (`/joint_states` → integrar la pose →
+    comparar con `/odom` y reportar el error), en `robot4r_control`;
+  - justificación de los parámetros de los sensores y de la pista en el Notion.
