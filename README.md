@@ -9,7 +9,7 @@ Gazebo Sim, conectado a ROS 2 con `ros_gz_bridge` y manejado con teleoperación 
 |---|---|
 | `Modelo_3D_STEP_Corregido_description` | URDF exportado del CAD y mallas STL. De aquí se usan las mallas. |
 | `robot4r_sim` | Xacro parametrizado, mundo (pista), generador de la pista, bridge, configuración de RViz2 y launch. |
-| `robot4r_control` | Paquete `ament_python` para el nodo de cinemática de las llantas (aún sin nodos). |
+| `robot4r_control` | Nodo `odometria_ruedas`: integra la pose a partir de las velocidades de las ruedas y la compara con `/odom`. |
 
 ## Dependencias
 
@@ -118,6 +118,63 @@ otro. Si se cambia el spawn, hay que actualizar a la vez `SPAWN` en el script y
 `/joint_states` publica las ruedas en orden alfabético por nombre. Los nodos deben
 buscarlas por nombre y no por posición.
 
+## Cinemática de las llantas
+
+El nodo `odometria_ruedas` (en `robot4r_control`) lee las velocidades de las cuatro
+ruedas de `/joint_states`, calcula la velocidad del cuerpo, integra la pose y la
+compara con la odometría del plugin DiffDrive.
+
+Con `a` el radio de la rueda y `b` la semi-vía, y las ruedas en el orden
+`ω = [ω_FL, ω_RL, ω_FR, ω_RR]` (izquierdas primero):
+
+```
+ξ = [u, r]ᵀ = W · ω
+
+W = [  a/4      a/4      a/4     a/4  ]
+    [ -a/4b    -a/4b     a/4b    a/4b ]
+```
+
+Es equivalente a promediar cada lado, con `ω_I = (ω_FL + ω_RL)/2` y
+`ω_D = (ω_FR + ω_RR)/2`:
+
+```
+v = a (ω_D + ω_I) / 2          ω = a (ω_D − ω_I) / (2b)
+ẋ = v cos θ      ẏ = v sin θ      θ̇ = ω
+```
+
+Solo interviene la semi-vía `b`: la semi-distancia entre ejes `l` no aparece en un
+robot de este tipo. Con `a = 0.024 m` y `b = 0.0685 m`, `a/4 = 0.006` y
+`a/4b = 0.0876`. La pose se integra por el método del punto medio, usando las
+estampas de tiempo de `/joint_states`, y arranca desde la primera `/odom`.
+
+Ejecutar (con la simulación corriendo):
+
+```bash
+source install/setup.bash
+ros2 run robot4r_control odometria_ruedas --ros-args -p use_sim_time:=true
+```
+
+Publica `/odom_ruedas` (la odometría propia) y `/error_odometria` (`x`, `y` = error
+de posición en metros y `z` = error de orientación en radianes, propia menos plugin).
+Cada 2 s imprime un resumen en la terminal.
+
+Resultados medidos con teleoperación (lecturas del resumen, una cada 2 s):
+
+| Prueba | Error durante el movimiento | Error en reposo |
+|---|---|---|
+| Recta de 1.257 m | entre 0.0005 y 0.015 m | 0.001 m |
+| Giro en el sitio de 45.8° | hasta 0.34° | 0.06° |
+
+Observaciones:
+
+- El error durante el movimiento oscila y cambia de signo. Se explica por el
+  desfase de sincronización: el nodo compara contra una `/odom` que llega a 30 Hz
+  de simulación, mientras `/joint_states` llega mucho más rápido. En reposo, ese
+  desfase desaparece y queda el error real entre los dos métodos de integración.
+- Las dos odometrías parten de las mismas ruedas, el mismo radio y la misma vía, así
+  que coinciden entre sí por construcción. **No detectan el derrape** de las cuatro
+  ruedas al girar: para medirlo habría que comparar contra la pose real de Gazebo.
+
 ## Verificación rápida
 
 Con la simulación corriendo, en otra terminal con el workspace cargado:
@@ -128,6 +185,7 @@ ros2 topic echo /scan --field header.frame_id --once     # lidar_link
 ros2 topic echo /camera_info --once
 ros2 run tf2_tools view_frames                            # odom -> base_link -> ...
 gz model --list                                           # debe incluir robot4r
+gz topic -e -t /stats -n 1                                # real_time_factor
 ```
 
 ## Problemas conocidos
@@ -138,9 +196,14 @@ gz model --list                                           # debe incluir robot4r
   ventana con `gz sim -g` con la simulación corriendo lo muestra. La causa exacta
   no está confirmada; una posible mitigación es retrasar el nodo `create` en el
   launch con un `TimerAction`.
-- **La cámara llega por debajo de los 15 Hz configurados** (unos 7 Hz medidos con
-  `ros2 topic hz`). En WSL el render va por software; hay que contrastar contra el
-  factor de tiempo real de Gazebo antes de atribuirlo a la cámara.
+- **Factor de tiempo real bajo (RTF ≈ 0.08 a 0.13).** Medido con el robot quieto, la
+  simulación corre a una fracción de la velocidad real en WSL. Por eso, en tiempo de
+  pared, `/odom` llega a unos 6 Hz (configurado a 30 Hz de simulación) y la cámara a
+  unos 7 Hz (configurada a 15 Hz): las tasas son correctas en tiempo de simulación.
+  No está confirmada la causa (render por software, carga de CPU del GUI y de RViz, o
+  el paso de 1 ms). Los nodos propios usan las estampas de los mensajes y
+  `use_sim_time`, así que sus resultados no se ven afectados, solo tardan más en
+  obtenerse.
 - **Pocas lecturas cortas del LiDAR (≈0.11 m)** a unos −160° en `/scan`: alguna parte
   de la malla del propio robot queda cerca del sensor. No afecta la navegación.
 - La cámara usa `camera_link` como frame y no un frame óptico.
@@ -156,10 +219,12 @@ gz model --list                                           # debe incluir robot4r
 
 ## Estado
 
-- Hecho: modelo, tracción, sensores, bridge, RViz2, launch único, teleoperación y
-  pista propia (curvas, estrechamiento, obstáculos, muros con colisión y spawn definido).
+- Hecho:
+  - modelo, tracción, sensores, bridge, RViz2 y launch único;
+  - pista propia (curvas, estrechamiento, obstáculos, muros con colisión y spawn definido);
+  - teleoperación con recorrido completo de la pista, sin colisiones;
+  - nodo de cinemática de las llantas, ejecutado y con errores medidos en recta y en giro.
 - Pendiente:
-  - recorrido completo de la pista con teleoperación, sin colisiones;
-  - nodo de cinemática de las llantas (`/joint_states` → integrar la pose →
-    comparar con `/odom` y reportar el error), en `robot4r_control`;
-  - justificación de los parámetros de los sensores y de la pista en el Notion.
+  - justificación de los parámetros de los sensores, de la pista y del modelo en el Notion;
+  - (opcional) comparar las odometrías contra la pose real de Gazebo para cuantificar
+    el derrape, y guardar los errores en un CSV para reportar el error máximo y el RMSE.
