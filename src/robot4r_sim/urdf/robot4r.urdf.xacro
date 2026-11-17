@@ -5,16 +5,24 @@
   <xacro:property name="rueda_radio" value="0.024"/>   <!-- a -->
   <xacro:property name="rueda_ancho" value="0.018"/>
   <xacro:property name="l" value="0.0475"/>            <!-- semi-distancia entre ejes -->
-  <xacro:property name="b" value="0.0685"/>            <!-- semi-vía -->
+  <xacro:property name="b" value="0.0675"/>            <!-- semi-vía -->
   <xacro:property name="z_ruedas" value="-0.024831"/>  <!-- altura de los ejes respecto a base_link -->
+    <!-- Masas: el total debe ser 0.906 kg (tabla del MicroROS). El chasis absorbe la diferencia. -->
+  <xacro:property name="masa_total" value="0.906"/>
+  <xacro:property name="masa_rueda" value="0.10793382984070173"/>
+  <xacro:property name="masa_camara" value="0.01"/>
+  <xacro:property name="masa_lidar" value="0.04"/>
+  <xacro:property name="masa_chasis" value="${masa_total - 4*masa_rueda - masa_camara - masa_lidar}"/>
+  <xacro:property name="k_inercia" value="${masa_chasis / 1.1564709160846736}"/>
 
   <material name="plata"><color rgba="0.7 0.7 0.7 1"/></material>
 
   <link name="cad_link">
     <inertial>
       <origin xyz="0.007075542755688884 0.00039268626018340705 -0.002336319439391987" rpy="0 0 0"/>
-      <mass value="1.1564709160846736"/>
-      <inertia ixx="0.00173" ixy="-2.3e-05" ixz="-0.000306" iyy="0.002971" iyz="-8e-06" izz="0.00348"/>
+      <mass value="${masa_chasis}"/>
+      <inertia ixx="${0.00173*k_inercia}" ixy="${-2.3e-05*k_inercia}" ixz="${-0.000306*k_inercia}"
+               iyy="${0.002971*k_inercia}" iyz="${-8e-06*k_inercia}" izz="${0.00348*k_inercia}"/>
     </inertial>
     <visual>
       <geometry>
@@ -45,7 +53,7 @@
   <xacro:macro name="rueda" params="nombre x y_signo mesh_y">
     <link name="${nombre}_wheel">
       <inertial>
-        <mass value="0.10793382984070173"/>
+        <mass value="${masa_rueda}"/>
         <inertia ixx="2.1e-05" ixy="0" ixz="0" iyy="3.7e-05" iyz="0" izz="2.1e-05"/>
       </inertial>
       <visual>
@@ -80,7 +88,7 @@
        del link del sensor. Posiciones medidas del STL (redondeadas a 0.1 mm). -->
   <link name="camera_link">
     <inertial>
-      <mass value="0.01"/>
+      <mass value="${masa_camara}"/>
       <inertia ixx="1e-05" ixy="0" ixz="0" iyy="1e-05" iyz="0" izz="1e-05"/>
     </inertial>
     <visual>
@@ -99,7 +107,7 @@
 
   <link name="lidar_link">
     <inertial>
-      <mass value="0.04"/>
+      <mass value="${masa_lidar}"/>
       <inertia ixx="1e-04" ixy="0" ixz="0" iyy="1e-04" iyz="0" izz="1e-04"/>
     </inertial>
     <visual>
@@ -124,15 +132,22 @@
       <lidar>
         <scan>
           <horizontal>
-            <samples>360</samples>
+            <samples>450</samples>
+            <resolution>1</resolution>
             <min_angle>-3.14159</min_angle>
             <max_angle>3.14159</max_angle>
           </horizontal>
         </scan>
         <range>
-          <min>0.1</min>
-          <max>10.0</max>
+          <min>0.03</min>
+          <max>12.0</max>
+          <resolution>0.01</resolution>
         </range>
+        <noise>
+          <type>gaussian</type>
+          <mean>0.0</mean>
+          <stddev>0.01</stddev>
+        </noise>
       </lidar>
     </sensor>
   </gazebo>
@@ -164,6 +179,12 @@
       <tf_topic>/tf</tf_topic>
       <frame_id>odom</frame_id>
       <child_frame_id>base_link</child_frame_id>
+      <max_linear_velocity>1.0</max_linear_velocity>
+      <min_linear_velocity>-1.0</min_linear_velocity>
+      <max_angular_velocity>4.0</max_angular_velocity>
+      <min_angular_velocity>-4.0</min_angular_velocity>
+      <max_linear_acceleration>2.0</max_linear_acceleration>
+      <min_linear_acceleration>-2.0</min_linear_acceleration>
     </plugin>
     <plugin filename="gz-sim-joint-state-publisher-system" name="gz::sim::systems::JointStatePublisher">
       <topic>joint_states</topic>

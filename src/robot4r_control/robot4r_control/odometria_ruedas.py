@@ -49,7 +49,7 @@ class OdometriaRuedas(Node):
         super().__init__('odometria_ruedas')
 
         self.a = self.declare_parameter('radio_rueda', 0.024).value   # a [m]
-        self.b = self.declare_parameter('semi_via', 0.0685).value     # b [m]
+        self.b = self.declare_parameter('semi_via', 0.0675).value     # b [m]
         self.W = matriz_W(self.a, self.b)
 
         self.pose = None     # (x, y, theta) propia; se inicia con la primera /odom
