@@ -54,12 +54,7 @@ SECCIONES = [
 ]
 
 # (índice de sección, fracción 0..1, desplazamiento lateral (+ izquierda), tipo, tamaño)
-OBSTACULOS = [
-    (4, 0.30, +0.15, 'caja', 0.15),
-    (4, 0.70, -0.15, 'cilindro', 0.08),   # tamaño = radio
-    (11, 0.50, +0.15, 'caja', 0.20),
-    (14, 0.40, -0.12, 'cilindro', 0.07),
-]
+OBSTACULOS = []
 
 
 # ===================== GEOMETRÍA =====================

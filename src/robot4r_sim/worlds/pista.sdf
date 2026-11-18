@@ -1947,54 +1947,6 @@
       </link>
     </model>
 
-    <model name="obstaculo_1">
-      <static>true</static>
-      <pose>4.1400 3.2500 0.125 0 0 0.0000</pose>
-      <link name="link">
-        <collision name="col"><geometry><box><size>0.15 0.15 0.25</size></box></geometry></collision>
-        <visual name="vis">
-          <geometry><box><size>0.15 0.15 0.25</size></box></geometry>
-          <material><ambient>0.2 0.4 0.9 1</ambient><diffuse>0.2 0.4 0.9 1</diffuse></material>
-        </visual>
-      </link>
-    </model>
-
-    <model name="obstaculo_2">
-      <static>true</static>
-      <pose>4.8600 2.9500 0.125 0 0 0.0000</pose>
-      <link name="link">
-        <collision name="col"><geometry><cylinder><radius>0.08</radius><length>0.25</length></cylinder></geometry></collision>
-        <visual name="vis">
-          <geometry><cylinder><radius>0.08</radius><length>0.25</length></cylinder></geometry>
-          <material><ambient>0.2 0.4 0.9 1</ambient><diffuse>0.2 0.4 0.9 1</diffuse></material>
-        </visual>
-      </link>
-    </model>
-
-    <model name="obstaculo_3">
-      <static>true</static>
-      <pose>7.2000 5.5500 0.125 0 0 3.1416</pose>
-      <link name="link">
-        <collision name="col"><geometry><box><size>0.2 0.2 0.25</size></box></geometry></collision>
-        <visual name="vis">
-          <geometry><box><size>0.2 0.2 0.25</size></box></geometry>
-          <material><ambient>0.2 0.4 0.9 1</ambient><diffuse>0.2 0.4 0.9 1</diffuse></material>
-        </visual>
-      </link>
-    </model>
-
-    <model name="obstaculo_4">
-      <static>true</static>
-      <pose>4.1879 6.8200 0.125 0 0 3.1416</pose>
-      <link name="link">
-        <collision name="col"><geometry><cylinder><radius>0.07</radius><length>0.25</length></cylinder></geometry></collision>
-        <visual name="vis">
-          <geometry><cylinder><radius>0.07</radius><length>0.25</length></cylinder></geometry>
-          <material><ambient>0.2 0.4 0.9 1</ambient><diffuse>0.2 0.4 0.9 1</diffuse></material>
-        </visual>
-      </link>
-    </model>
-
     <model name="marca_spawn">
       <static>true</static>
       <pose>0.5 0.0 0.002 0 0 0.0</pose>
