@@ -54,7 +54,9 @@ class AEBNode(Node):
 
         self.create_subscription(LaserScan, '/scan', self.scan_cb, qos_profile_sensor_data)
         self.create_subscription(Odometry, '/odom', self.odom_cb, 10)
-        self.create_subscription(Twist, '/cmd_vel_teleop', self.cmd_cb, 10)
+        self.declare_parameter('modo', 'teleop')      # 'teleop' | 'auto'
+        topic_cmd = '/cmd_vel_auto' if self.get_parameter('modo').value == 'auto' else '/cmd_vel_teleop'
+        self.create_subscription(Twist, topic_cmd, self.cmd_cb, 10)
         self.pub_cmd = self.create_publisher(Twist, '/cmd_vel', 10)
         self.pub_active = self.create_publisher(Bool, '/aeb/active', 10)
         self.pub_ttc = self.create_publisher(Float32, '/aeb/ttc', 10)
