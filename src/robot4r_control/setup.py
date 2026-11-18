@@ -25,6 +25,7 @@ setup(
     entry_points={
         'console_scripts': [
             'odometria_ruedas = robot4r_control.odometria_ruedas:main',
+            'aeb_node = robot4r_control.aeb_node:main',
         ],
     },
 )
