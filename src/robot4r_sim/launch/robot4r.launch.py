@@ -1,3 +1,4 @@
+import math
 import os
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
@@ -20,19 +21,22 @@ def lanzar(context, *args, **kwargs):
     rviz_config = os.path.join(pkg, 'rviz', 'robot4r.rviz')
 
     if pista == 'propia':
-        world_path = os.path.join(pkg, 'worlds', 'pista.sdf')
-        x0, y0 = 0.5, 0.0
+        world_path = os.path.join(pkg, 'worlds', 'pista_propia.sdf')
+        x0, y0, yaw0 = 0.6, 0.0, math.pi     # detrás de la línea (origen del STL); verificar en Gazebo
+    elif pista == 'prueba':
+        world_path = os.path.join(pkg, 'worlds', 'pista.sdf')   # pista anterior, ya probada
+        x0, y0, yaw0 = 0.5, 0.0, 0.0
     elif pista == 'competencia':
         # TODO: ajustar el nombre del paquete y del world cuando llegue la pista del profesor.
         comp = get_package_share_directory('pista_competencia')
         world_path = os.path.join(comp, 'worlds', 'pista_competencia.sdf')
-        x0, y0 = -0.60, 0.0
+        x0, y0, yaw0 = -0.60, 0.0, 0.0      # spawn indicado en el enunciado
     else:
-        raise RuntimeError("pista debe ser 'propia' o 'competencia', no '%s'" % pista)
+        raise RuntimeError("pista debe ser 'propia', 'prueba' o 'competencia', no '%s'" % pista)
 
     # Gazebo resuelve package://Modelo_3D_STEP_Corregido_description/meshes/...
     # buscando en el directorio que contiene al paquete instalado.
-    recursos = os.path.dirname(desc)
+    recursos = os.pathsep.join([os.path.dirname(desc), os.path.dirname(pkg)])
     robot_description = ParameterValue(
         Command(['xacro ', xacro_path]), value_type=str)
 
@@ -49,7 +53,8 @@ def lanzar(context, *args, **kwargs):
         Node(
             package='ros_gz_sim', executable='create',
             arguments=['-topic', 'robot_description', '-name', 'robot4r',
-                       '-x', str(x0), '-y', str(y0), '-z', '0.06'],
+                       '-x', str(x0), '-y', str(y0), '-z', '0.06',
+                       '-Y', str(yaw0)],
             output='screen'),
         Node(
             package='ros_gz_bridge', executable='parameter_bridge',
