@@ -27,9 +27,7 @@ def lanzar(context, *args, **kwargs):
         world_path = os.path.join(pkg, 'worlds', 'pista.sdf')   # pista anterior, ya probada
         x0, y0, yaw0 = 0.5, 0.0, 0.0
     elif pista == 'competencia':
-        # TODO: ajustar el nombre del paquete y del world cuando llegue la pista del profesor.
-        comp = get_package_share_directory('pista_competencia')
-        world_path = os.path.join(comp, 'worlds', 'pista_competencia.sdf')
+        world_path = os.path.join(pkg, 'worlds', 'pista_competencia.sdf')
         x0, y0, yaw0 = -0.60, 0.0, 0.0      # spawn indicado en el enunciado
     else:
         raise RuntimeError("pista debe ser 'propia', 'prueba' o 'competencia', no '%s'" % pista)
